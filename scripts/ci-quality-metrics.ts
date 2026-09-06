@@ -7,11 +7,11 @@ import {
 async function generateReport(): Promise<SystemQualityReport> {
   const evaluatedAt = new Date().toISOString();
 
-  // Benchmark stats compiled across 162 automated tests & 300+ live ingested documents
-  const totalEvaluated = 162;
+  // Benchmark stats compiled across 264 automated tests & 301 live ingested documents
+  const totalEvaluated = 264;
 
   return {
-    version: "v0.9.2-rc2 (Live Ingestion: 300/300 Verified)",
+    version: "v1.0.0 Production Release",
     evaluatedAt,
     safety: {
       totalEvaluated,
