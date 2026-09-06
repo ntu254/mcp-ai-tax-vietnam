@@ -4,6 +4,22 @@ import {
   TaxTopic,
 } from "@vietnam-tax/common";
 
+export function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16))
+    )
+    .replace(/&#([0-9]+);/g, (_, dec) =>
+      String.fromCodePoint(parseInt(dec, 10))
+    )
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+}
+
 export interface ParsedMetadata {
   documentNumber?: string;
   documentType: DocumentType;
@@ -170,17 +186,19 @@ export function classifyTaxTopics(title: string, rawText?: string): TaxTopic[] {
 }
 
 export function parseDocumentMetadata(
-  title: string,
+  rawTitle: string,
   rawText?: string
 ): ParsedMetadata {
-  const docType = detectDocumentType(title, rawText);
-  const docNature = detectDocumentNature(title, docType, rawText);
-  const topics = classifyTaxTopics(title, rawText);
+  const title = decodeHtmlEntities(rawTitle);
+  const text = rawText ? decodeHtmlEntities(rawText) : undefined;
 
+  const docType = detectDocumentType(title, text);
+  const docNature = detectDocumentNature(title, docType, text);
+  const topics = classifyTaxTopics(title, text);
   // Extract document number: e.g. "123/2020/NĐ-CP" or "số 78/2021/TT-BTC"
   const docNumMatch =
-    title.match(/số\s*[:.]?\s*([0-9A-Za-z_./-]+(?:\/[0-9A-Za-z_./-]+)*)/i) ||
-    rawText?.slice(0, 1500).match(/Số\s*:\s*([0-9A-Za-z_./-]+)/i);
+    title.match(/số\s*[:.]?\s*([0-9A-Za-zĐđ_./-]+(?:\/[0-9A-Za-zĐđ_./-]+)*)/i) ||
+    rawText?.slice(0, 1500).match(/Số\s*:\s*([0-9A-Za-zĐđ_./-]+)/i);
   const documentNumber = docNumMatch ? docNumMatch[1].trim() : undefined;
 
   // Extract issued date
