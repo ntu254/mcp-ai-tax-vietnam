@@ -14,6 +14,9 @@ importers:
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.38.4
+        version: 0.38.4(@types/pg@8.23.1)(pg@8.23.0)
       tsx:
         specifier: ^4.19.3
         version: 4.23.13

@@ -104,31 +104,63 @@ async function testLiveMcp() {
       .where(eq(documentSources.id, sampleSourceId));
   }
 
-  // Ensure provision exists for Điều 4
-  const existingProvs = await db
+  // Ensure all 61 provisions exist for Decree 123/2020/NĐ-CP
+  const provCountRes = await db
     .select()
     .from(legalProvisions)
-    .where(eq(legalProvisions.document_id, sampleDocId))
-    .limit(1);
+    .where(eq(legalProvisions.document_id, sampleDocId));
 
   let sampleProvId: string;
-  if (existingProvs.length > 0) {
-    sampleProvId = existingProvs[0].id;
-  } else {
+
+  if (provCountRes.length < 61) {
+    // Clean up old stub
+    await db
+      .delete(legalProvisions)
+      .where(eq(legalProvisions.document_id, sampleDocId));
+
+    const decreeProvisions = [
+      { num: 1, title: "Phạm vi điều chỉnh", content: "Nghị định này quy định việc quản lý, sử dụng hóa đơn khi bán hàng hóa, cung cấp dịch vụ; quy định việc quản lý, sử dụng chứng từ." },
+      { num: 2, title: "Đối tượng áp dụng", content: "Tổ chức, cá nhân bán hàng hóa, cung cấp dịch vụ bao gồm doanh nghiệp, hộ kinh doanh, cá nhân kinh doanh." },
+      { num: 3, title: "Giải thích từ ngữ", content: "Hóa đơn điện tử là hóa đơn có mã hoặc không có mã của cơ quan thuế được thể hiện ở dạng dữ liệu điện tử." },
+      { num: 4, title: "Nguyên tắc lập, quản lý, sử dụng hóa đơn, chứng từ", content: "Khi bán hàng hóa, cung cấp dịch vụ, người bán phải lập hóa đơn điện tử để giao cho người mua." },
+      { num: 5, title: "Loại hóa đơn", content: "Hóa đơn giá trị gia tăng áp dụng đối với người nộp thuế theo phương pháp khấu trừ. Hóa đơn bán hàng áp dụng theo phương pháp trực tiếp." },
+      { num: 6, title: "Bảo quản, lưu trữ hóa đơn, chứng từ", content: "Hóa đơn điện tử phải được bảo quản, lưu trữ bằng phương tiện điện tử theo quy định của pháp luật." },
+      { num: 7, title: "Hành vi bị cấm trong quản lý, sử dụng hóa đơn", content: "Cấm gian lận như sử dụng hóa đơn không hợp pháp, sử dụng không hợp pháp hóa đơn." },
+      { num: 8, title: "Hóa đơn điện tử có mã của cơ quan thuế", content: "Doanh nghiệp, tổ chức kinh tế sử dụng hóa đơn điện tử có mã của cơ quan thuế khi bán hàng hóa, cung cấp dịch vụ." },
+      { num: 9, title: "Thời điểm lập hóa đơn", content: "Thời điểm lập hóa đơn đối với bán hàng hóa là thời điểm chuyển giao quyền sở hữu hoặc quyền sử dụng hàng hóa." },
+      { num: 10, title: "Nội dung của hóa đơn", content: "Tên hóa đơn, ký hiệu mẫu số hóa đơn, ký hiệu hóa đơn, số hóa đơn; tên, địa chỉ, mã số thuế người bán và người mua." },
+    ];
+
+    // Generate remaining articles up to 61
+    for (let i = 11; i <= 61; i++) {
+      decreeProvisions.push({
+        num: i,
+        title: i === 59 ? "Hiệu lực thi hành" : `Quy định tại Điều ${i}`,
+        content: i === 59 ? "Nghị định này có hiệu lực thi hành từ ngày 01 tháng 07 năm 2022. Bãi bỏ Nghị định số 51/2010/NĐ-CP." : `Nội dung chi tiết quy định tại Điều ${i} của Nghị định số 123/2020/NĐ-CP về hóa đơn điện tử.`,
+      });
+    }
+
     sampleProvId = crypto.randomUUID();
-    await db.insert(legalProvisions).values({
-      id: sampleProvId,
-      document_id: sampleDocId,
-      article: "Điều 4",
-      clause: "1",
-      heading: "Nguyên tắc lập, quản lý, sử dụng hóa đơn",
-      content: "Khi bán hàng hóa, cung cấp dịch vụ, người bán phải lập hóa đơn điện tử để giao cho người mua.",
-      normalized_content: "khi ban hang hoa cung cap dich vu nguoi ban phai lap hoa don dien tu de giao cho nguoi mua",
-      content_hash: "mock-content-hash-art4",
-      valid_from: "2022-07-01",
-      created_at: now,
-      updated_at: now,
-    });
+
+    for (const dp of decreeProvisions) {
+      const pId = dp.num === 4 ? sampleProvId : crypto.randomUUID();
+      await db.insert(legalProvisions).values({
+        id: pId,
+        document_id: sampleDocId,
+        article: `Điều ${dp.num}`,
+        clause: "1",
+        heading: dp.title,
+        content: dp.content,
+        normalized_content: dp.content.toLowerCase(),
+        content_hash: `mock-content-hash-art${dp.num}`,
+        valid_from: "2022-07-01",
+        sort_key: `${dp.num.toString().padStart(4, "0")}.0001`,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+  } else {
+    sampleProvId = provCountRes.find((p) => p.article === "Điều 4")?.id ?? provCountRes[0].id;
   }
 
   // Ensure evidence exists

@@ -325,12 +325,13 @@ export const GetEffectiveTaxRulesOutputSchema = z.object({
   effective_at: z.string(),
   answerable: z.boolean(),
   dataset_version: z.string(),
+  candidates_considered: z.number().int().nonnegative().optional(),
+  rules_returned: z.number().int().nonnegative().optional(),
   rules: z.array(EffectiveRuleItemSchema),
   official_guidance: z.array(OfficialGuidanceItemSchema).default([]),
   warnings: z.array(z.string()).default([]),
   evaluated_timezone: z.string().default("Asia/Ho_Chi_Minh"),
 });
-
 export type GetEffectiveTaxRulesOutput = z.infer<
   typeof GetEffectiveTaxRulesOutputSchema
 >;

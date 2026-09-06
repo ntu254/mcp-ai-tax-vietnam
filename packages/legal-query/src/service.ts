@@ -115,7 +115,8 @@ export class LegalQueryService {
       document_type: r.doc.document_type as DocumentType,
       document_nature: r.doc.document_nature as DocumentNature,
       issuer: r.doc.issuer_name,
-      effective_from: r.event.effective_from ?? r.doc.default_effective_from ?? undefined,
+      effective_from:
+        r.event.effective_from ?? r.doc.default_effective_from ?? undefined,
       evidence_snapshot_id: r.event.source_snapshot_id ?? undefined,
     }));
 
@@ -197,7 +198,7 @@ export class LegalQueryService {
       });
     }
 
-    // Load provisions
+    // Load provisions (default to true if omitted)
     let provisions: ProvisionResult[] | undefined;
     if (input.include_provisions ?? true) {
       const pRows = await this.db
@@ -223,7 +224,7 @@ export class LegalQueryService {
       }));
     }
 
-    // Load relationships
+    // Load relationships (default to true if omitted)
     let relationships: DocumentRelationshipView[] | undefined;
     if (input.include_relationships ?? true) {
       const relRows = await this.db
@@ -257,7 +258,7 @@ export class LegalQueryService {
       }));
     }
 
-    // Load evidence
+    // Load evidence (default to true if omitted)
     let evidence: EvidenceItem[] | undefined;
     if (input.include_evidence ?? true) {
       const evRows = await this.db
@@ -311,7 +312,8 @@ export class LegalQueryService {
       default_effective_from: doc.default_effective_from,
       default_effective_to: doc.default_effective_to,
       verification_status: doc.verification_status as VerificationStatus,
-      current_status_cached: (doc.current_status_cached as EvaluatedLegalStatus) ?? null,
+      current_status_cached:
+        (doc.current_status_cached as EvaluatedLegalStatus) ?? null,
       current_status_as_of: doc.current_status_as_of,
       sources,
       provisions,
@@ -324,27 +326,46 @@ export class LegalQueryService {
   }
 
   /**
-   * Tool 4: get_effective_tax_rules
+   * Tool 4: get_effective_tax_rules (Reranked Top-K Retrieval)
    */
   public async getEffectiveTaxRules(
     input: GetEffectiveTaxRulesInput
   ): Promise<GetEffectiveTaxRulesOutput> {
     const effectiveAt = input.effective_at ?? getCurrentDateInVietnam();
+    const limit = input.limit ?? 10;
     const warnings: string[] = [];
 
     // Search candidate documents (filtering out drafts/proposals)
     const candidateDocs = await this.searchEngine.search({
       query: input.query,
       topics: input.topics,
-      limit: input.limit ?? 10,
+      limit: 20, // Consider top 20 candidate documents
       effectiveOnly: true,
     });
 
-    const effectiveRules: EffectiveRuleItem[] = [];
-    const officialGuidanceList: OfficialGuidanceItem[] = [];
+    const queryLower = input.query.toLowerCase();
+    const queryTerms = queryLower
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .trim()
+      .split(/\s+/)
+      .filter((t) => t.length > 1);
+
+    interface ScoredRule {
+      rule: EffectiveRuleItem;
+      score: number;
+    }
+
+    interface ScoredGuidance {
+      guidance: OfficialGuidanceItem;
+      score: number;
+    }
+
+    const scoredRules: ScoredRule[] = [];
+    const scoredGuidance: ScoredGuidance[] = [];
+    let candidatesConsidered = 0;
 
     for (const candidate of candidateDocs) {
-      // Evaluate document temporal status
+      // 1. Evaluate document temporal status
       const docEval = await this.stateEngine.evaluateDocumentStatus(
         candidate.document_id,
         effectiveAt
@@ -358,14 +379,16 @@ export class LegalQueryService {
         continue;
       }
 
-      // Load provisions for this document
+      // 2. Load provisions for this document
       const provisions = await this.db
         .select()
         .from(legalProvisions)
         .where(eq(legalProvisions.document_id, candidate.document_id))
         .orderBy(legalProvisions.sort_key);
 
-      // Load evidence items for this document
+      candidatesConsidered += provisions.length;
+
+      // 3. Load evidence items for this document
       const evidenceRows = await this.db
         .select()
         .from(legalEvidence)
@@ -385,8 +408,41 @@ export class LegalQueryService {
         created_at: e.created_at.toISOString(),
       }));
 
-      // Filter provisions matching query or topic
+      // 4. Score and filter provisions based on query relevance
       for (const prov of provisions) {
+        const provContentLower = prov.content.toLowerCase();
+        const provHeadingLower = (prov.heading ?? "").toLowerCase();
+
+        let matchScore = 0;
+
+        // Exact phrase match in provision content or heading
+        if (provContentLower.includes(queryLower)) {
+          matchScore += 3.0;
+        } else if (provHeadingLower.includes(queryLower)) {
+          matchScore += 2.5;
+        }
+
+        // Keyword terms matching
+        for (const term of queryTerms) {
+          if (provContentLower.includes(term)) matchScore += 0.5;
+          if (provHeadingLower.includes(term)) matchScore += 0.8;
+        }
+
+        // Exact document number or title match boost
+        if (
+          candidate.title.toLowerCase().includes(queryLower) ||
+          (candidate.document_number &&
+            candidate.document_number.toLowerCase().includes(queryLower))
+        ) {
+          matchScore += 1.0;
+        }
+
+        // FILTER: Discard provisions that have zero query relevance
+        if (matchScore <= 0) {
+          continue;
+        }
+
+        // 5. Evaluate provision-level temporal status
         const provEval = await this.stateEngine.evaluateProvisionStatus(
           prov.id,
           effectiveAt
@@ -416,44 +472,57 @@ export class LegalQueryService {
           evidence: provEvidence,
         };
 
+        const totalScore = (candidate.score ?? 1.0) * 0.4 + matchScore * 0.6;
+
         if (candidate.document_nature === "official_guidance") {
-          if (input.include_official_guidance) {
-            officialGuidanceList.push({
-              document_id: candidate.document_id,
-              document_number: candidate.document_number,
-              title: candidate.title,
-              document_nature: "official_guidance",
-              issuer: candidate.issuer,
-              issued_date: candidate.issued_date,
-              guidance_summary: prov.content.slice(0, 300),
-              provision: provResult,
-              evidence: provEvidence,
-              note: "Official guidance reflects administrative execution interpretation and is not a normative legal document (VBQPPL).",
+          if (input.include_official_guidance ?? true) {
+            scoredGuidance.push({
+              guidance: {
+                document_id: candidate.document_id,
+                document_number: candidate.document_number,
+                title: candidate.title,
+                document_nature: "official_guidance",
+                issuer: candidate.issuer,
+                issued_date: candidate.issued_date,
+                guidance_summary: prov.content.slice(0, 300),
+                provision: provResult,
+                evidence: provEvidence,
+                note: "Official guidance reflects administrative execution interpretation and is not a normative legal document (VBQPPL).",
+              },
+              score: totalScore,
             });
           }
         } else {
-          // Normative legal document (Law, Decree, Circular...)
-          effectiveRules.push({
-            document_id: candidate.document_id,
-            canonical_id: candidate.canonical_id,
-            document_number: candidate.document_number,
-            title: candidate.title,
-            document_type: candidate.document_type,
-            document_nature: candidate.document_nature,
-            issuer: candidate.issuer,
-            effective_from: candidate.default_effective_from,
-            effective_to: candidate.default_effective_to,
-            provision: provResult,
-            evidence: provEvidence,
-            relevance_snippet: prov.content.slice(0, 250),
+          scoredRules.push({
+            rule: {
+              document_id: candidate.document_id,
+              canonical_id: candidate.canonical_id,
+              document_number: candidate.document_number,
+              title: candidate.title,
+              document_type: candidate.document_type,
+              document_nature: candidate.document_nature,
+              issuer: candidate.issuer,
+              effective_from: candidate.default_effective_from,
+              effective_to: candidate.default_effective_to,
+              provision: provResult,
+              evidence: provEvidence,
+              relevance_snippet: prov.content.slice(0, 250),
+            },
+            score: totalScore,
           });
         }
       }
     }
 
+    // 6. Rerank descending by score and slice to top-K (limit)
+    scoredRules.sort((a, b) => b.score - a.score);
+    scoredGuidance.sort((a, b) => b.score - a.score);
+
+    const topRules = scoredRules.slice(0, limit).map((s) => s.rule);
+    const topGuidance = scoredGuidance.slice(0, limit).map((s) => s.guidance);
+
     // Section 41: answerable policy
-    // answerable=false if no evidence or conflict
-    const answerable = effectiveRules.length > 0 || officialGuidanceList.length > 0;
+    const answerable = topRules.length > 0 || topGuidance.length > 0;
     if (!answerable) {
       warnings.push("INSUFFICIENT_EVIDENCE");
     }
@@ -462,8 +531,10 @@ export class LegalQueryService {
       effective_at: effectiveAt,
       answerable,
       dataset_version: DATASET_VERSION,
-      rules: effectiveRules,
-      official_guidance: officialGuidanceList,
+      candidates_considered: candidatesConsidered,
+      rules_returned: topRules.length,
+      rules: topRules,
+      official_guidance: topGuidance,
       warnings,
       evaluated_timezone: "Asia/Ho_Chi_Minh",
     };

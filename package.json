@@ -23,6 +23,7 @@
     "ingest:persistent": "tsx --env-file=.env scripts/ingest-persistent.ts"
   },
   "devDependencies": {
+    "drizzle-orm": "^0.38.4",
     "@types/node": "^22.13.9",
     "dotenv": "^16.4.7",
     "tsx": "^4.19.3",

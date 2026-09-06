@@ -16,7 +16,29 @@ export interface TemporalAccuracyMetrics {
 export interface RetrievalQualityMetrics {
   documentRecallAt10Pct: number;
   provisionRecallAt10Pct: number;
+  precisionAt5Pct: number;
+  precisionAt10Pct: number;
+  meanReciprocalRank: number;
+  nDCGAt10: number;
   citationAccuracyPct: number;
+  duplicateResultRatePct: number;
+  irrelevantEffectiveRuleRatePct: number;
+}
+
+export interface ProvisionDistributionMetrics {
+  documentsWithProvisions: number;
+  totalProvisions: number;
+  meanProvisionsPerDoc: number;
+  medianProvisionsPerDoc: number;
+  p95ProvisionsPerDoc: number;
+  maxProvisionsPerDoc: number;
+  fallbackOnlyDocs: number;
+}
+
+export interface DomainIntegrityMetrics {
+  orphanStubDocuments: number;
+  duplicateCanonicalDocs: number;
+  sourcesWithoutDocument: number;
 }
 
 export interface IngestionQualityMetrics {
@@ -32,11 +54,15 @@ export interface SystemQualityReport {
   safety: LegalSafetyMetrics;
   temporal: TemporalAccuracyMetrics;
   retrieval: RetrievalQualityMetrics;
+  provisionDistribution: ProvisionDistributionMetrics;
+  domainIntegrity: DomainIntegrityMetrics;
   ingestion: IngestionQualityMetrics;
 }
 
 export function formatQualityDashboard(report: SystemQualityReport): string {
   const N = report.safety.totalEvaluated;
+  const p = report.provisionDistribution;
+  const d = report.domainIntegrity;
 
   const lines: string[] = [
     `================================================================================`,
@@ -58,13 +84,35 @@ export function formatQualityDashboard(report: SystemQualityReport): string {
     `  Provision status accuracy      ${report.temporal.provisionStatusAccuracyPct.toFixed(1)}%`,
     `  Effective-date accuracy        ${report.temporal.effectiveDateAccuracyPct.toFixed(1)}%`,
     ``,
-    `Retrieval`,
+    `Retrieval Quality & Ranking`,
     `────────────────────────────────────────────────────────────────────────────────`,
+    `  Precision@5                    ${report.retrieval.precisionAt5Pct.toFixed(1)}%`,
+    `  Precision@10                   ${report.retrieval.precisionAt10Pct.toFixed(1)}%`,
     `  Document Recall@10             ${report.retrieval.documentRecallAt10Pct.toFixed(1)}%`,
     `  Provision Recall@10            ${report.retrieval.provisionRecallAt10Pct.toFixed(1)}%`,
+    `  MRR (Mean Reciprocal Rank)     ${report.retrieval.meanReciprocalRank.toFixed(2)}`,
+    `  nDCG@10                        ${report.retrieval.nDCGAt10.toFixed(2)}`,
     `  Citation accuracy              ${report.retrieval.citationAccuracyPct.toFixed(1)}%`,
+    `  Duplicate-result rate          ${report.retrieval.duplicateResultRatePct.toFixed(1)}%`,
+    `  Irrelevant-effective-rule rate ${report.retrieval.irrelevantEffectiveRuleRatePct.toFixed(1)}%`,
     ``,
-    `Ingestion`,
+    `Structured Provision Distribution (PostgreSQL Grounded)`,
+    `────────────────────────────────────────────────────────────────────────────────`,
+    `  Documents with provisions      ${p.documentsWithProvisions}`,
+    `  Total provisions segmented     ${p.totalProvisions}`,
+    `  Mean provisions / document     ${p.meanProvisionsPerDoc.toFixed(1)}`,
+    `  Median provisions / document   ${p.medianProvisionsPerDoc}`,
+    `  P95 provisions / document      ${p.p95ProvisionsPerDoc}`,
+    `  Max provisions / document      ${p.maxProvisionsPerDoc}`,
+    `  Fallback-only documents        ${p.fallbackOnlyDocs}`,
+    ``,
+    `Domain Integrity (Relational Correctness)`,
+    `────────────────────────────────────────────────────────────────────────────────`,
+    `  Orphan stub documents          ${d.orphanStubDocuments}`,
+    `  Duplicate canonical docs       ${d.duplicateCanonicalDocs}`,
+    `  Sources without document       ${d.sourcesWithoutDocument}`,
+    ``,
+    `Ingestion & Resilience`,
     `────────────────────────────────────────────────────────────────────────────────`,
     `  Duplicate rate                 ${report.ingestion.duplicateRatePct.toFixed(1)}%`,
     `  Missed-document rate           ${report.ingestion.missedDocumentRatePct.toFixed(1)}%`,
