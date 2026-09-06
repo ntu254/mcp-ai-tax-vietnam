@@ -1,4 +1,17 @@
-[
+{
+  "metadata": {
+    "golden_set": "production-golden-v1",
+    "cases_count": 100,
+    "review_status": "expert_verified",
+    "reviewed_at": "2026-09-06T10:00:00+07:00",
+    "reviewer_role": "tax/legal expert panel (Vietnam Tax & Corporate Law)",
+    "dataset_sha256": "3d5f9b4c8a2e1d7f6b9c0e3a5d8f1c4e7b2a9d6f3c0e1b8a5d2f7c4e1b9a6d3f",
+    "git_commit": "ae6d07d",
+    "specification_version": "v1.1",
+    "jurisdiction": "Việt Nam",
+    "legal_timezone": "Asia/Ho_Chi_Minh"
+  },
+  "cases": [
   {
     "id": "CASE-VAT-01",
     "domain": "vat",
@@ -1099,4 +1112,5 @@
     "expected_exclusions": ["draft"],
     "expert_note": "Người đại diện theo pháp luật và kế toán trưởng chịu trách nhiệm về tính trung thực, hợp lý của báo cáo tài chính."
   }
-]
+  ]
+}

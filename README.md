@@ -150,5 +150,35 @@ mcp-ai-tax/
 
 ---
 
-## 6. License
+## 6. Production Security & Secret Hygiene
+
+### Secret Management
+- **Zero Default Credentials**: Never deploy with local sandbox credentials (`minioadmin/minioadmin` or `postgres:postgres`).
+- **Secret Injection**: In production, inject credentials at container launch via AWS Secrets Manager, HashiCorp Vault, or Kubernetes Secrets.
+- **TLS/SSL Encryption**: Enforce encrypted transport (`sslmode=require` on `DATABASE_URL` and `https://` for `OBJECT_STORAGE_ENDPOINT`).
+- **Private Subnets**: Deploy database and object storage inside private VPC subnets with no public ingress.
+- **SSRF Defense**: The ingestion connector strictly enforces official government domain allowlists (`congbao.chinhphu.vn`, `*.mof.gov.vn`, etc.) and re-validates each redirect hop. `ALLOW_LOCAL_FETCH=false` is mandatory in production.
+
+---
+
+## 7. Quality Metrics & Benchmark Verification
+
+Run the CI quality dashboard directly:
+```bash
+pnpm metrics
+```
+
+Execute full backup and 100% object storage integrity scan:
+```bash
+pnpm backup:test
+```
+
+Run live E2E 4-tools verification:
+```bash
+pnpm exec tsx --env-file=.env scripts/test-mcp-live.ts
+```
+
+---
+
+## 8. License
 Internal / Proprietary production specification.

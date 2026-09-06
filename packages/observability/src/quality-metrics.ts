@@ -8,9 +8,9 @@ export interface LegalSafetyMetrics {
 }
 
 export interface TemporalAccuracyMetrics {
-  documentStatusAccuracyPct: number;
-  provisionStatusAccuracyPct: number;
-  effectiveDateAccuracyPct: number;
+  goldenDocumentStatusAccuracyPct: number;
+  goldenProvisionStatusAccuracyPct: number;
+  goldenEffectiveDateAccuracyPct: number;
 }
 
 export interface RetrievalQualityMetrics {
@@ -35,6 +35,27 @@ export interface ProvisionDistributionMetrics {
   fallbackOnlyDocs: number;
 }
 
+export interface CoverageAccountingMetrics {
+  totalDocumentsIndexed: number;
+  expectedParseable: number;
+  structuredSuccessfully: number;
+  fallbackOnlyDocs: number;
+  metadataOnlyDocs: number;
+  attachmentUnavailable: number;
+  parserFailed: number;
+  ocrRequired: number;
+  pendingReprocessing: number;
+}
+
+export interface GoldenBenchmarkAuditMetrics {
+  expertLegalCases: number;
+  datasetIntegrityTests: number;
+  totalAutomatedGoldenTests: number;
+  totalTestSuiteCases: number;
+  expertReviewStatus: string;
+  reviewedAt: string;
+}
+
 export interface DomainIntegrityMetrics {
   orphanStubDocuments: number;
   duplicateCanonicalDocs: number;
@@ -55,6 +76,8 @@ export interface SystemQualityReport {
   temporal: TemporalAccuracyMetrics;
   retrieval: RetrievalQualityMetrics;
   provisionDistribution: ProvisionDistributionMetrics;
+  coverageAccounting: CoverageAccountingMetrics;
+  goldenBenchmarkAudit: GoldenBenchmarkAuditMetrics;
   domainIntegrity: DomainIntegrityMetrics;
   ingestion: IngestionQualityMetrics;
 }
@@ -62,6 +85,8 @@ export interface SystemQualityReport {
 export function formatQualityDashboard(report: SystemQualityReport): string {
   const N = report.safety.totalEvaluated;
   const p = report.provisionDistribution;
+  const c = report.coverageAccounting;
+  const g = report.goldenBenchmarkAudit;
   const d = report.domainIntegrity;
 
   const lines: string[] = [
@@ -69,6 +94,15 @@ export function formatQualityDashboard(report: SystemQualityReport): string {
     `               VIETNAM TAX & LEGAL MCP — QUALITY & SAFETY DASHBOARD`,
     `                     Release: ${report.version} | ${report.evaluatedAt}`,
     `================================================================================`,
+    ``,
+    `Production Golden Benchmark Audit Trail (Section 56 & 57)`,
+    `────────────────────────────────────────────────────────────────────────────────`,
+    `  Expert-verified legal cases    ${g.expertLegalCases} / 100`,
+    `  Dataset schema integrity tests ${g.datasetIntegrityTests}`,
+    `  Total automated golden tests   ${g.totalAutomatedGoldenTests}`,
+    `  Total automated test suite     ${g.totalTestSuiteCases}`,
+    `  Expert review status           ${g.expertReviewStatus}`,
+    `  Audit baseline timestamp       ${g.reviewedAt}`,
     ``,
     `Legal Safety`,
     `────────────────────────────────────────────────────────────────────────────────`,
@@ -78,11 +112,11 @@ export function formatQualityDashboard(report: SystemQualityReport): string {
     `  Unsupported answerable         ${report.safety.unsupportedAnswerableCount} / ${N}`,
     `  Hidden authoritative conflict  ${report.safety.hiddenConflictCount} / ${N}`,
     ``,
-    `Temporal`,
+    `Temporal Evaluation Accuracy (Verified Benchmark)`,
     `────────────────────────────────────────────────────────────────────────────────`,
-    `  Document status accuracy       ${report.temporal.documentStatusAccuracyPct.toFixed(1)}%`,
-    `  Provision status accuracy      ${report.temporal.provisionStatusAccuracyPct.toFixed(1)}%`,
-    `  Effective-date accuracy        ${report.temporal.effectiveDateAccuracyPct.toFixed(1)}%`,
+    `  Golden-set doc status accuracy ${report.temporal.goldenDocumentStatusAccuracyPct.toFixed(1)}%`,
+    `  Golden-set prov status accuracy${report.temporal.goldenProvisionStatusAccuracyPct.toFixed(1)}%`,
+    `  Golden-set eff-date accuracy   ${report.temporal.goldenEffectiveDateAccuracyPct.toFixed(1)}%`,
     ``,
     `Retrieval Quality & Ranking`,
     `────────────────────────────────────────────────────────────────────────────────`,
@@ -96,7 +130,7 @@ export function formatQualityDashboard(report: SystemQualityReport): string {
     `  Duplicate-result rate          ${report.retrieval.duplicateResultRatePct.toFixed(1)}%`,
     `  Irrelevant-effective-rule rate ${report.retrieval.irrelevantEffectiveRuleRatePct.toFixed(1)}%`,
     ``,
-    `Structured Provision Distribution (PostgreSQL Grounded)`,
+    `Structured Provision Distribution (PostgreSQL 17 Grounded)`,
     `────────────────────────────────────────────────────────────────────────────────`,
     `  Documents with provisions      ${p.documentsWithProvisions}`,
     `  Total provisions segmented     ${p.totalProvisions}`,
@@ -105,6 +139,18 @@ export function formatQualityDashboard(report: SystemQualityReport): string {
     `  P95 provisions / document      ${p.p95ProvisionsPerDoc}`,
     `  Max provisions / document      ${p.maxProvisionsPerDoc}`,
     `  Fallback-only documents        ${p.fallbackOnlyDocs}`,
+    ``,
+    `Document Ingestion & Body Processing Accounting`,
+    `────────────────────────────────────────────────────────────────────────────────`,
+    `  Total documents indexed        ${c.totalDocumentsIndexed}`,
+    `  Expected parseable             ${c.expectedParseable}`,
+    `  Structured successfully        ${c.structuredSuccessfully}`,
+    `  Fallback-only (short/summary)  ${c.fallbackOnlyDocs}`,
+    `  Metadata-only (signed on CDN)  ${c.metadataOnlyDocs}`,
+    `  Attachment unavailable         ${c.attachmentUnavailable}`,
+    `  Parser failures                ${c.parserFailed}`,
+    `  OCR required (scanned PDF)     ${c.ocrRequired}`,
+    `  Pending reprocessing           ${c.pendingReprocessing}`,
     ``,
     `Domain Integrity (Relational Correctness)`,
     `────────────────────────────────────────────────────────────────────────────────`,
