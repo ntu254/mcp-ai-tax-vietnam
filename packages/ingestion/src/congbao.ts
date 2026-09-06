@@ -206,11 +206,13 @@ export class CongBaoConnector implements SourceConnector {
   }
 
   public async fetchDetail(
-    item: DiscoveredItem
+    item: DiscoveredItem,
+    options?: { downloadBinary?: boolean }
   ): Promise<{
     html?: string;
     binary?: Buffer;
     binaryFilename?: "original.pdf" | "original.docx";
+    binaryUrl?: string;
   }> {
     const detailUrl = item.detailUrl ?? item.sourceUrl;
     logger.debug({ url: detailUrl }, "Fetching Cong Bao detail page");
@@ -242,7 +244,7 @@ export class CongBaoConnector implements SourceConnector {
       binaryFilename = "original.docx";
     }
 
-    if (binaryUrl && binaryFilename) {
+    if (binaryUrl && binaryFilename && options?.downloadBinary !== false) {
       try {
         const binRes = await this.fetcher.fetchWithRetry(binaryUrl);
         binary = binRes.buffer;
@@ -254,6 +256,7 @@ export class CongBaoConnector implements SourceConnector {
       }
     }
 
-    return { html, binary, binaryFilename };
+    return { html, binary, binaryFilename, binaryUrl };
+
   }
 }
