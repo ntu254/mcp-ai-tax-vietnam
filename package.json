@@ -16,7 +16,10 @@
     "test:golden": "vitest run tests/golden",
     "test:unit": "vitest run tests/unit",
     "db:generate": "pnpm --filter=@vietnam-tax/db generate",
-    "db:migrate": "pnpm --filter=@vietnam-tax/db migrate"
+    "db:migrate": "pnpm --filter=@vietnam-tax/db migrate",
+    "metrics": "tsx scripts/ci-quality-metrics.ts",
+    "backup:test": "tsx scripts/backup-restore-verify.ts",
+    "ingest:live": "tsx scripts/ingest-live.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",

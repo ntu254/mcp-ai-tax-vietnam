@@ -44,20 +44,22 @@ export class SnapshotManager {
       ? computeSha256(input.binaryBuffer)
       : undefined;
 
-    // Find current active snapshot for this source
-    const existingSnapshots = await this.db
-      .select()
-      .from(sourceSnapshots)
-      .where(
-        and(
-          eq(sourceSnapshots.source_id, input.sourceId),
-          eq(sourceSnapshots.is_current, true)
-        )
-      )
+    // Find current active snapshot for this source via documentSources.current_snapshot_id pointer
+    const sourceRows = await this.db
+      .select({ currentSnapshotId: documentSources.current_snapshot_id })
+      .from(documentSources)
+      .where(eq(documentSources.id, input.sourceId))
       .limit(1);
 
-    const currentSnapshot = existingSnapshots[0];
-
+    let currentSnapshot: typeof sourceSnapshots.$inferSelect | undefined;
+    if (sourceRows[0]?.currentSnapshotId) {
+      const snaps = await this.db
+        .select()
+        .from(sourceSnapshots)
+        .where(eq(sourceSnapshots.id, sourceRows[0].currentSnapshotId))
+        .limit(1);
+      currentSnapshot = snaps[0];
+    }
     // Check if hashes are unchanged
     if (
       currentSnapshot &&
@@ -139,13 +141,7 @@ export class SnapshotManager {
       await this.storage.putObject(binaryKey, input.binaryBuffer, mime);
     }
 
-    // Mark previous snapshots is_current = false
-    if (currentSnapshot) {
-      await this.db
-        .update(sourceSnapshots)
-        .set({ is_current: false })
-        .where(eq(sourceSnapshots.source_id, input.sourceId));
-    }
+    // NOTE: source_snapshots is strictly append-only. No previous snapshot rows are mutated.
 
     // Insert new snapshot
     await this.db.insert(sourceSnapshots).values({
@@ -164,10 +160,11 @@ export class SnapshotManager {
       created_at: now,
     });
 
-    // Update document_sources timestamps
+    // Advance current_snapshot_id pointer on document_sources (append-only architecture)
     await this.db
       .update(documentSources)
       .set({
+        current_snapshot_id: snapshotId,
         last_seen_at: now,
         last_checked_at: now,
         updated_at: now,

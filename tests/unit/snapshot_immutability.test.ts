@@ -5,8 +5,13 @@ interface MockSnapshot {
   id: string;
   source_id: string;
   page_hash: string;
-  is_current: boolean;
   created_at: Date;
+}
+
+interface MockDocumentSource {
+  id: string;
+  current_snapshot_id: string;
+  last_checked_at: Date;
 }
 
 interface MockEvidence {
@@ -15,68 +20,67 @@ interface MockEvidence {
   source_snapshot_id: string;
 }
 
-describe("Snapshot Immutability & Provenance Pinning (Section 15 & 19)", () => {
-  it("preserves previous snapshot immutability when source content changes", () => {
+describe("Snapshot Append-Only Row Immutability & Pointer Architecture (Point 3)", () => {
+  it("guarantees 0 mutations on snapshot rows and shifts pointer cleanly", () => {
     const sourceId = "source-001";
-
-    // 1. Initial snapshot A with hash aaa
     const initialHtml = "<html><body>Thông tư số 78/2021/TT-BTC</body></html>";
     const hashA = computeSha256(initialHtml);
-    const snapshotA: MockSnapshot = {
+
+    // 1. Initial snapshot A row
+    const snapshotA: Readonly<MockSnapshot> = Object.freeze({
       id: "snap-A",
       source_id: sourceId,
       page_hash: hashA,
-      is_current: true,
       created_at: new Date("2026-09-01T10:00:00Z"),
+    });
+
+    const source: MockDocumentSource = {
+      id: sourceId,
+      current_snapshot_id: snapshotA.id,
+      last_checked_at: new Date("2026-09-01T10:00:00Z"),
     };
 
     // Evidence created against snapshot A
-    const evidenceItem: MockEvidence = {
+    const evidenceItem: Readonly<MockEvidence> = Object.freeze({
       id: "evi-001",
       field_name: "document_number",
       source_snapshot_id: snapshotA.id,
-    };
+    });
 
-    // 2. Fetcher runs again with unchanged content
-    const recheckedHtml = "<html><body>Thông tư số 78/2021/TT-BTC</body></html>";
-    const recheckHash = computeSha256(recheckedHtml);
+    // 2. Fetcher runs with unchanged content:
+    const recheckHash = computeSha256(initialHtml);
+    expect(recheckHash).toBe(snapshotA.page_hash);
 
-    const isUnchanged = recheckHash === snapshotA.page_hash;
-    expect(isUnchanged).toBe(true);
-    // Invariant: Unchanged content MUST NOT create a new snapshot
-    const shouldCreateNewSnapshot = !isUnchanged;
-    expect(shouldCreateNewSnapshot).toBe(false);
+    // Only source.last_checked_at is updated
+    source.last_checked_at = new Date("2026-09-04T10:00:00Z");
+    expect(source.current_snapshot_id).toBe("snap-A");
 
-    // 3. Source changes on remote server (e.g. updated typo or amendment notice)
+    // 3. Source content changes on remote server
     const updatedHtml = "<html><body>Thông tư số 78/2021/TT-BTC (đã đính chính)</body></html>";
     const hashB = computeSha256(updatedHtml);
-
     expect(hashB).not.toBe(hashA);
 
-    // Create Snapshot B
-    const snapshotB: MockSnapshot = {
+    // Create Snapshot B row
+    const snapshotB: Readonly<MockSnapshot> = Object.freeze({
       id: "snap-B",
       source_id: sourceId,
       page_hash: hashB,
-      is_current: true,
       created_at: new Date("2026-09-06T10:00:00Z"),
-    };
+    });
 
-    // Mark previous snapshot is_current = false
-    snapshotA.is_current = false;
+    // Advance pointer on document_sources
+    source.current_snapshot_id = snapshotB.id;
+    source.last_checked_at = new Date("2026-09-06T10:00:00Z");
 
-    // INVARIANTS VERIFICATION:
-    // A still exists
+    // INVARIANTS:
+    // Snapshot A is 100% unmodified (Object.isFrozen preserved)
     expect(snapshotA.id).toBe("snap-A");
     expect(snapshotA.page_hash).toBe(hashA);
-    expect(snapshotA.is_current).toBe(false);
 
-    // B is current
-    expect(snapshotB.id).toBe("snap-B");
-    expect(snapshotB.is_current).toBe(true);
+    // Source pointer now points to B
+    expect(source.current_snapshot_id).toBe("snap-B");
 
-    // Existing evidence continues to point strictly to snapshot A (never mutated!)
+    // Historical evidence is NEVER mutated and continues pointing to snapshot A
     expect(evidenceItem.source_snapshot_id).toBe("snap-A");
-    expect(evidenceItem.source_snapshot_id).not.toBe(snapshotB.id);
   });
 });

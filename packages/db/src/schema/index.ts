@@ -112,6 +112,7 @@ export const documentSources = pgTable(
     pdf_url: text("pdf_url"),
     docx_url: text("docx_url"),
     source_document_id: varchar("source_document_id", { length: 255 }),
+    current_snapshot_id: uuid("current_snapshot_id"),
 
     first_seen_at: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull(),

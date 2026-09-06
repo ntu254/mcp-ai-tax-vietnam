@@ -60,6 +60,7 @@ export interface DocumentSource {
   pdf_url?: string | null;
   docx_url?: string | null;
   source_document_id?: string | null;
+  current_snapshot_id?: string | null;
   first_seen_at: Date;
   last_seen_at: Date;
   last_checked_at: Date;
