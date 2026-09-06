@@ -1,0 +1,27 @@
+{
+  "name": "@vietnam-tax/verification",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@vietnam-tax/common": "workspace:*",
+    "@vietnam-tax/db": "workspace:*",
+    "@vietnam-tax/observability": "workspace:*",
+    "drizzle-orm": "^0.38.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

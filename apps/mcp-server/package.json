@@ -1,0 +1,29 @@
+{
+  "name": "@vietnam-tax/mcp-server",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "vietnam-tax-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@vietnam-tax/common": "workspace:*",
+    "@vietnam-tax/db": "workspace:*",
+    "@vietnam-tax/legal-query": "workspace:*",
+    "@vietnam-tax/observability": "workspace:*",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

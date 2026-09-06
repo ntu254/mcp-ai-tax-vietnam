@@ -1,0 +1,28 @@
+{
+  "name": "vietnam-tax-mcp",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Production-grade Vietnam Tax & Legal retrieval infrastructure for AI Agents",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "build": "pnpm -r --filter=!tests build",
+    "dev": "pnpm --filter=@vietnam-tax/mcp-server dev",
+    "mcp": "pnpm --filter=@vietnam-tax/mcp-server start",
+    "worker": "pnpm --filter=@vietnam-tax/worker start",
+    "test": "vitest run",
+    "test:golden": "vitest run tests/golden",
+    "test:unit": "vitest run tests/unit",
+    "db:generate": "pnpm --filter=@vietnam-tax/db generate",
+    "db:migrate": "pnpm --filter=@vietnam-tax/db migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
