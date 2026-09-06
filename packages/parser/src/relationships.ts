@@ -29,7 +29,7 @@ export function extractDocumentRelationships(text: string): ParsedRelationship[]
 
     // Partial repeal: "Bãi bỏ Khoản... Điều... của..."
     const partialRepealMatch = trimmed.match(
-      /bãi\s+bỏ\s+(?:khoản\s+([0-9]+)\s+)?(?:điều\s+([0-9]+)\s+)?(?:của\s+)?(?:thông\s+tư|nghị\s+định|luật|quyết\s+định)\s+(?:số\s+)?([0-9]+(?:\/[0-9]+)?\/[A-Za-z0-9Đđ_.-]+)/i
+      /bãi\s+bỏ\s+(?:khoản\s+([0-9]+)\s+)?(?:điều\s+([0-9]+)\s+)?(?:của\s+)?(?:thông\s+tư|nghị\s+định|luật(?:\s+[^\d\n]+)?|quyết\s+định)\s+(?:số\s+)?([0-9]+(?:\/[0-9]+)?\/[A-Za-z0-9Đđ_.-]+)/i
     );
     if (partialRepealMatch && (partialRepealMatch[1] || partialRepealMatch[2])) {
       const clause = partialRepealMatch[1];

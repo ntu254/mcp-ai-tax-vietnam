@@ -73,20 +73,11 @@ export function detectDocumentNature(
 ): DocumentNature {
   const combined = `${title} ${rawText?.slice(0, 1000) ?? ""}`.toLowerCase();
 
+  if (combined.includes("lấy ý kiến") || combined.includes("góp ý")) return "consultation";
   if (combined.includes("dự thảo")) return "draft";
   if (combined.includes("tờ trình")) return "proposal";
-  if (combined.includes("lấy ý kiến") || combined.includes("góp ý")) return "consultation";
   if (combined.includes("văn bản hợp nhất")) return "consolidated_document";
   if (combined.includes("đính chính")) return "correction";
-
-  if (
-    docType === "official_letter" ||
-    docType === "dispatch" ||
-    docType === "guidance" ||
-    combined.includes("hướng dẫn")
-  ) {
-    return "official_guidance";
-  }
 
   if (
     docType === "law" ||
@@ -99,8 +90,16 @@ export function detectDocumentNature(
     return "normative_legal_document";
   }
 
+  if (
+    docType === "official_letter" ||
+    docType === "dispatch" ||
+    docType === "guidance" ||
+    combined.includes("hướng dẫn")
+  ) {
+    return "official_guidance";
+  }
+
   if (docType === "decision") {
-    // Check if normative or individual administrative
     if (
       combined.includes("quy phạm pháp luật") ||
       combined.includes("ban hành quy định") ||
@@ -108,6 +107,10 @@ export function detectDocumentNature(
     ) {
       return "normative_legal_document";
     }
+    return "administrative_document";
+  }
+
+  if (docType === "announcement") {
     return "administrative_document";
   }
 

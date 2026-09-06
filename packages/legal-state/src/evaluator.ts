@@ -227,7 +227,7 @@ export class LegalStateEngine {
       return {
         documentId,
         evaluatedAt,
-        status: "partially_repealed",
+        status: "partially_effective",
         isEffective: true,
         warnings: [
           "Specific provisions of this document have been repealed; unrepealed provisions remain in force.",
@@ -235,7 +235,6 @@ export class LegalStateEngine {
         relationshipsAffecting: activeAffectingRels,
       };
     }
-
     return {
       documentId,
       evaluatedAt,
