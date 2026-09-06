@@ -80,7 +80,8 @@ export class LegalSearchEngine {
             ? eq(legalDocuments.normalized_document_number, normalizedCandidateNumber)
             : undefined,
           ilike(legalDocuments.title, `%${query}%`),
-          sql`to_tsvector('simple', ${legalDocuments.title} || ' ' || COALESCE(${legalDocuments.normalized_text}, '')) @@ to_tsquery('simple', ${sanitizedTerms})`
+          sql`to_tsvector('simple', ${legalDocuments.title} || ' ' || COALESCE(${legalDocuments.normalized_text}, '') || ' ' || COALESCE(${legalDocuments.raw_text}, '')) @@ to_tsquery('simple', ${sanitizedTerms})`,
+          sql`EXISTS (SELECT 1 FROM legal_provisions p WHERE p.document_id = ${legalDocuments.id} AND p.content ILIKE ${`%${query}%`})`
         )
       );
     }

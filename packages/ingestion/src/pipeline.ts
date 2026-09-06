@@ -17,6 +17,7 @@ export interface PipelineRunOptions {
 
 export interface IngestionResultItem {
   discovered: DiscoveredItem;
+  documentId: string;
   documentSourceId: string;
   snapshotId: string;
   isNewSnapshot: boolean;
@@ -154,13 +155,13 @@ export class IngestionPipeline {
 
         results.push({
           discovered: item,
+          documentId,
           documentSourceId: sourceId,
           snapshotId: snapshotRes.snapshotId,
           isNewSnapshot: snapshotRes.isNewSnapshot,
           html: detail.html,
           binary: detail.binary,
         });
-
         latestProcessedId = item.sourceId;
         if (item.publicationDate) {
           const pDate = new Date(item.publicationDate);
@@ -176,8 +177,6 @@ export class IngestionPipeline {
         latestProcessedId,
         latestProcessedPubDate
       );
-
-      // Complete job
       await this.db
         .update(ingestionJobs)
         .set({

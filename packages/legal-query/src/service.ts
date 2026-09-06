@@ -199,7 +199,7 @@ export class LegalQueryService {
 
     // Load provisions
     let provisions: ProvisionResult[] | undefined;
-    if (input.include_provisions) {
+    if (input.include_provisions ?? true) {
       const pRows = await this.db
         .select()
         .from(legalProvisions)
@@ -225,7 +225,7 @@ export class LegalQueryService {
 
     // Load relationships
     let relationships: DocumentRelationshipView[] | undefined;
-    if (input.include_relationships) {
+    if (input.include_relationships ?? true) {
       const relRows = await this.db
         .select({
           rel: documentRelationships,
@@ -259,7 +259,7 @@ export class LegalQueryService {
 
     // Load evidence
     let evidence: EvidenceItem[] | undefined;
-    if (input.include_evidence) {
+    if (input.include_evidence ?? true) {
       const evRows = await this.db
         .select()
         .from(legalEvidence)

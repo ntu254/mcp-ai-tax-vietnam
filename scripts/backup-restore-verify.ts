@@ -75,13 +75,12 @@ export async function simulateBackupAndRestore(
 
 if (process.argv[1].endsWith("backup-restore-verify.ts")) {
   const sampleCounts: TableDataSnapshot = {
-    legal_documents: 50,
-    document_sources: 50,
-    source_snapshots: 50,
-    legal_provisions: 250,
-    legal_evidence: 450,
+    legal_documents: 301,
+    document_sources: 301,
+    source_snapshots: 384,
+    legal_provisions: 34620,
+    legal_evidence: 34867,
   };
-
   const sampleObjects = [
     {
       key: "raw/congbao/2026/09/doc1/snap1/original.pdf",

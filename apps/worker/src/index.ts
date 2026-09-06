@@ -1,78 +1,77 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
 import {
-  DatabaseInstance,
   closeDbPool,
+  DatabaseInstance,
   documentTopics,
   getDb,
   legalDocuments,
   legalEvents,
   legalProvisions,
 } from "@vietnam-tax/db";
+import { logger } from "@vietnam-tax/observability";
+import { ObjectStorageService, SnapshotManager } from "@vietnam-tax/source-storage";
 import {
   CheckpointManager,
   CongBaoConnector,
   IngestionPipeline,
+  IngestionResultItem,
 } from "@vietnam-tax/ingestion";
 import {
   buildCanonicalId,
-  DeduplicationEngine,
   normalizeDocumentNumber,
 } from "@vietnam-tax/canonicalization";
 import {
   EvidenceCollector,
   extractDocumentRelationships,
+  extractPdfText,
   parseDocumentMetadata,
   parseLegalProvisions,
 } from "@vietnam-tax/parser";
-import { logger } from "@vietnam-tax/observability";
-import { ObjectStorageService, SnapshotManager } from "@vietnam-tax/source-storage";
 import { VerificationEngine } from "@vietnam-tax/verification";
+
+export interface ProcessingMetrics {
+  documentsProcessed: number;
+  documentsWithStructuredBody: number;
+  articlesDetected: number;
+  clausesDetected: number;
+  pointsDetected: number;
+  totalProvisions: number;
+  fallbackOnlyDocuments: number;
+  relationshipsDetected: number;
+}
+
 async function processIngestedItem(
   db: DatabaseInstance,
-  item: {
-    documentSourceId: string;
-    snapshotId: string;
-    html?: string;
-    discovered: {
-      title: string;
-      documentNumber?: string;
-      publicationDate?: string;
-    };
+  item: IngestionResultItem
+): Promise<{ provisionsCount: number; articlesCount: number; clausesCount: number; relationshipsCount: number }> {
+  // 1. Extract full text: prioritize signed PDF binary if available
+  let textContent = item.html ?? item.discovered.title;
+  if (item.binary && item.binary.byteLength > 0) {
+    const pdfText = await extractPdfText(item.binary);
+    if (pdfText && pdfText.length > 200) {
+      textContent = pdfText;
+    }
   }
-) {
-  const textContent = item.html ?? item.discovered.title;
+
+  // 2. Parse metadata, provisions, and relationships
   const parsedMeta = parseDocumentMetadata(item.discovered.title, textContent);
   const provisions = parseLegalProvisions(textContent);
   const relationships = extractDocumentRelationships(textContent);
 
-  const dedupeEngine = new DeduplicationEngine(db);
-  const dedupeRes = await dedupeEngine.findExistingDocument({
+  const { canonicalId, canonicalStatus } = buildCanonicalId({
+    documentType: parsedMeta.documentType,
     documentNumber: parsedMeta.documentNumber,
-    title: parsedMeta.title,
     issuedDate: parsedMeta.issuedDate,
   });
 
-  let documentId: string;
+  const now = new Date();
+  const documentId = item.documentId;
 
-  if (dedupeRes.isDuplicate && dedupeRes.matchedDocumentId) {
-    documentId = dedupeRes.matchedDocumentId;
-    logger.info(
-      { matchedDocumentId: documentId, signals: dedupeRes.matchSignals },
-      "Item matched existing canonical document"
-    );
-  } else {
-    documentId = crypto.randomUUID();
-    const { canonicalId, canonicalStatus } = buildCanonicalId({
-      documentType: parsedMeta.documentType,
-      documentNumber: parsedMeta.documentNumber,
-      issuedDate: parsedMeta.issuedDate,
-    });
-
-    const now = new Date();
-
-    await db.insert(legalDocuments).values({
-      id: documentId,
+  // 3. Update the existing document created by pipeline (guarantees exactly 1 document per item, 0 stubs!)
+  await db
+    .update(legalDocuments)
+    .set({
       canonical_id: canonicalId,
       canonical_status: canonicalStatus,
       document_number: parsedMeta.documentNumber,
@@ -88,82 +87,93 @@ async function processIngestedItem(
       default_effective_from: parsedMeta.effectiveFrom,
       verification_status: "unverified",
       language: "vi",
-      raw_text: textContent.slice(0, 50000), // safety bound
-      source_count: 1,
+      raw_text: textContent.slice(0, 50000),
+      updated_at: now,
+    })
+    .where(eq(legalDocuments.id, documentId));
+
+  // 4. Insert topics
+  for (const topic of parsedMeta.topics) {
+    await db
+      .insert(documentTopics)
+      .values({
+        document_id: documentId,
+        topic,
+        is_primary: true,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 5. Insert structured provisions (Điều / Khoản / Điểm)
+  const insertedProvisions: Array<{
+    id: string;
+    parsed: (typeof provisions)[number];
+  }> = [];
+
+  let articlesCount = 0;
+  let clausesCount = 0;
+
+  for (const prov of provisions) {
+    const pId = crypto.randomUUID();
+    if (prov.article) articlesCount++;
+    if (prov.clause) clausesCount++;
+
+    await db.insert(legalProvisions).values({
+      id: pId,
+      document_id: documentId,
+      chapter: prov.chapter,
+      section: prov.section,
+      article: prov.article,
+      clause: prov.clause,
+      heading: prov.heading,
+      content: prov.content,
+      normalized_content: prov.normalizedContent,
+      content_hash: prov.contentHash,
+      valid_from: prov.validFrom ?? parsedMeta.effectiveFrom,
+      valid_to: prov.validTo,
+      status_override: prov.statusOverride,
+      sort_key: prov.sortKey,
       created_at: now,
       updated_at: now,
     });
 
-    // Insert topics
-    for (const topic of parsedMeta.topics) {
-      await db
-        .insert(documentTopics)
-        .values({
-          document_id: documentId,
-          topic,
-          is_primary: true,
-        })
-        .onConflictDoNothing();
-    }
-
-    // Insert provisions
-    const insertedProvisions: Array<{
-      id: string;
-      parsed: (typeof provisions)[number];
-    }> = [];
-
-    for (const prov of provisions) {
-      const pId = crypto.randomUUID();
-      await db.insert(legalProvisions).values({
-        id: pId,
-        document_id: documentId,
-        chapter: prov.chapter,
-        section: prov.section,
-        article: prov.article,
-        clause: prov.clause,
-        heading: prov.heading,
-        content: prov.content,
-        normalized_content: prov.normalizedContent,
-        content_hash: prov.contentHash,
-        valid_from: prov.validFrom ?? parsedMeta.effectiveFrom,
-        valid_to: prov.validTo,
-        status_override: prov.statusOverride,
-        sort_key: prov.sortKey,
-        created_at: now,
-        updated_at: now,
-      });
-
-      insertedProvisions.push({ id: pId, parsed: prov });
-    }
-
-    // Collect snapshot evidence
-    const evidenceCollector = new EvidenceCollector(db);
-    await evidenceCollector.recordDocumentEvidence({
-      documentId,
-      sourceSnapshotId: item.snapshotId,
-      metadata: parsedMeta,
-      provisions: insertedProvisions,
-    });
-
-    // Record publication legal event
-    await db.insert(legalEvents).values({
-      id: crypto.randomUUID(),
-      document_id: documentId,
-      event_type: "published",
-      event_date: item.discovered.publicationDate ?? now.toISOString().slice(0, 10),
-      effective_from: parsedMeta.effectiveFrom,
-      description: `Document published: ${parsedMeta.title}`,
-      source_snapshot_id: item.snapshotId,
-      created_at: now,
-    });
-
-    // Run verification engine
-    const verificationEngine = new VerificationEngine(db);
-    await verificationEngine.verifyDocument(documentId);
+    insertedProvisions.push({ id: pId, parsed: prov });
   }
+
+  // 6. Record snapshot evidence
+  const evidenceCollector = new EvidenceCollector(db);
+  await evidenceCollector.recordDocumentEvidence({
+    documentId,
+    sourceSnapshotId: item.snapshotId,
+    metadata: parsedMeta,
+    provisions: insertedProvisions,
+  });
+
+  // 7. Record publication legal event
+  await db.insert(legalEvents).values({
+    id: crypto.randomUUID(),
+    document_id: documentId,
+    event_type: "published",
+    event_date: item.discovered.publicationDate ?? now.toISOString().slice(0, 10),
+    effective_from: parsedMeta.effectiveFrom,
+    description: `Document published: ${parsedMeta.title}`,
+    source_snapshot_id: item.snapshotId,
+    created_at: now,
+  });
+
+  // 8. Run verification engine
+  const verificationEngine = new VerificationEngine(db);
+  await verificationEngine.verifyDocument(documentId);
+
+  return {
+    provisionsCount: provisions.length,
+    articlesCount,
+    clausesCount,
+    relationshipsCount: relationships.length,
+  };
 }
 
-async function runWorkerIteration() {
+export async function runWorkerIteration(limit = 10): Promise<ProcessingMetrics> {
   const db = getDb();
   const storage = new ObjectStorageService();
   await storage.ensureBucket();
@@ -173,12 +183,33 @@ async function runWorkerIteration() {
   const pipeline = new IngestionPipeline(db, checkpointManager, snapshotManager);
   const connector = new CongBaoConnector();
 
-  logger.info("Worker polling Công Báo RSS feed...");
-  const ingestedItems = await pipeline.runConnector(connector, { limit: 10 });
+  logger.info({ limit }, "Worker polling Công Báo feed...");
+  const ingestedItems = await pipeline.runConnector(connector, { limit });
+
+  const metrics: ProcessingMetrics = {
+    documentsProcessed: ingestedItems.length,
+    documentsWithStructuredBody: 0,
+    articlesDetected: 0,
+    clausesDetected: 0,
+    pointsDetected: 0,
+    totalProvisions: 0,
+    fallbackOnlyDocuments: 0,
+    relationshipsDetected: 0,
+  };
 
   for (const item of ingestedItems) {
     try {
-      await processIngestedItem(db, item);
+      const res = await processIngestedItem(db, item);
+      metrics.totalProvisions += res.provisionsCount;
+      metrics.articlesDetected += res.articlesCount;
+      metrics.clausesDetected += res.clausesCount;
+      metrics.relationshipsDetected += res.relationshipsCount;
+
+      if (res.provisionsCount > 1) {
+        metrics.documentsWithStructuredBody++;
+      } else {
+        metrics.fallbackOnlyDocuments++;
+      }
     } catch (processErr) {
       logger.error(
         { title: item.discovered.title, err: processErr },
@@ -188,9 +219,17 @@ async function runWorkerIteration() {
   }
 
   logger.info(
-    { count: ingestedItems.length },
+    {
+      processed: metrics.documentsProcessed,
+      structuredDocs: metrics.documentsWithStructuredBody,
+      totalProvisions: metrics.totalProvisions,
+      articles: metrics.articlesDetected,
+      clauses: metrics.clausesDetected,
+    },
     "Worker finished iteration processing"
   );
+
+  return metrics;
 }
 
 async function main() {
@@ -200,17 +239,17 @@ async function main() {
     Number(process.env.INGESTION_INTERVAL_MINUTES) || 15;
   const intervalMs = intervalMinutes * 60 * 1000;
 
-  // Run immediately once
+  // Run initial iteration
   try {
-    await runWorkerIteration();
+    await runWorkerIteration(10);
   } catch (err) {
     logger.error({ err }, "Error during initial worker run");
   }
 
-  // Periodic loop
+  // Scheduled periodic timer
   const timer = setInterval(async () => {
     try {
-      await runWorkerIteration();
+      await runWorkerIteration(10);
     } catch (err) {
       logger.error({ err }, "Error during scheduled worker run");
     }

@@ -19,7 +19,8 @@
     "db:migrate": "tsx --env-file=.env packages/db/src/migrate.ts",
     "metrics": "tsx scripts/ci-quality-metrics.ts",
     "backup:test": "tsx scripts/backup-restore-verify.ts",
-    "ingest:live": "tsx scripts/ingest-live.ts"
+    "ingest:live": "tsx scripts/ingest-live.ts",
+    "ingest:persistent": "tsx --env-file=.env scripts/ingest-persistent.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
