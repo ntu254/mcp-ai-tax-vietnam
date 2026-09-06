@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { logger } from "@vietnam-tax/observability";

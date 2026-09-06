@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: vietnam_tax_legal
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/0000_initial_schema.sql:/docker-entrypoint-initdb.d/0000_initial_schema.sql:ro

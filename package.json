@@ -10,13 +10,13 @@
   "scripts": {
     "build": "pnpm -r --filter=!tests build",
     "dev": "pnpm --filter=@vietnam-tax/mcp-server dev",
-    "mcp": "pnpm --filter=@vietnam-tax/mcp-server start",
-    "worker": "pnpm --filter=@vietnam-tax/worker start",
+    "mcp": "tsx --env-file=.env apps/mcp-server/src/index.ts",
+    "worker": "tsx --env-file=.env apps/worker/src/index.ts",
     "test": "vitest run",
     "test:golden": "vitest run tests/golden",
     "test:unit": "vitest run tests/unit",
     "db:generate": "pnpm --filter=@vietnam-tax/db generate",
-    "db:migrate": "pnpm --filter=@vietnam-tax/db migrate",
+    "db:migrate": "tsx --env-file=.env packages/db/src/migrate.ts",
     "metrics": "tsx scripts/ci-quality-metrics.ts",
     "backup:test": "tsx scripts/backup-restore-verify.ts",
     "ingest:live": "tsx scripts/ingest-live.ts"
