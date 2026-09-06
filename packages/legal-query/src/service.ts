@@ -32,6 +32,8 @@ import {
   SearchLegalDocsOutput,
   TaxTopic,
   VerificationStatus,
+  SourceProvenanceItem,
+  VerificationProvenance,
 } from "@vietnam-tax/common";
 import { LegalSearchEngine } from "@vietnam-tax/search";
 import {
@@ -118,12 +120,37 @@ export class LegalQueryService {
       effective_from:
         r.event.effective_from ?? r.doc.default_effective_from ?? undefined,
       evidence_snapshot_id: r.event.source_snapshot_id ?? undefined,
+      source_name: "congbao",
+      verification: {
+        status: (r.doc.verification_status || "single_source_verified") as VerificationStatus,
+        sources: [
+          {
+            source: "congbao",
+            transport: "https",
+            format: "html",
+            strategy: "rss",
+            snapshot_id: r.event.source_snapshot_id ?? undefined,
+            verification_status: r.doc.verification_status || "single_source_verified",
+          },
+        ],
+      },
     }));
 
     return {
       as_of: getCurrentDateInVietnam(),
       dataset_version: DATASET_VERSION,
       items,
+      verification: {
+        status: "single_source_verified" as VerificationStatus,
+        sources: [
+          {
+            source: "congbao",
+            transport: "https",
+            format: "html",
+            strategy: "rss",
+          },
+        ],
+      },
     };
   }
 
@@ -135,11 +162,27 @@ export class LegalQueryService {
   ): Promise<SearchLegalDocsOutput> {
     const results = await this.searchEngine.search(input);
 
+    const enrichedResults = results.map((r) => ({
+      ...r,
+      verification: {
+        status: r.verification_status,
+        sources: [
+          {
+            source: "congbao",
+            transport: "https",
+            format: "html",
+            strategy: "rss",
+            verification_status: r.verification_status,
+          },
+        ],
+      },
+    }));
+
     return {
       query: input.query,
       total: results.length,
       dataset_version: DATASET_VERSION,
-      results,
+      results: enrichedResults,
     };
   }
 
@@ -177,6 +220,8 @@ export class LegalQueryService {
       .where(eq(documentSources.document_id, doc.id));
 
     const sources: DocumentSourceView[] = [];
+    const sourcesProvenance: SourceProvenanceItem[] = [];
+    const nowIso = new Date().toISOString();
     for (const s of sourcesRows) {
       const snapshots = await this.db
         .select()
@@ -184,6 +229,10 @@ export class LegalQueryService {
         .where(eq(sourceSnapshots.source_id, s.id));
 
       const latest = snapshots.find((snap) => snap.is_current) ?? snapshots[0];
+      const strategy = s.source_type === "html_fallback" ? "html_fallback" : "rss";
+      const format = "html";
+      const transport = "https";
+      const channel = s.source_type === "html_fallback" ? "html" : s.source_type;
       sources.push({
         id: s.id,
         source_name: s.source_name,
@@ -195,8 +244,25 @@ export class LegalQueryService {
         is_official: s.is_official,
         snapshots_count: snapshots.length,
         latest_snapshot_id: latest?.id ?? null,
+        channel,
+        transport,
+      });
+
+      sourcesProvenance.push({
+        source: s.source_name,
+        transport,
+        format,
+        strategy,
+        snapshot_id: latest?.id ?? null,
+        verification_status: doc.verification_status,
+        retrieved_at: nowIso,
       });
     }
+
+    const verification = {
+      status: doc.verification_status as VerificationStatus,
+      sources: sourcesProvenance,
+    };
 
     // Load provisions (default to true if omitted)
     let provisions: ProvisionResult[] | undefined;
@@ -316,6 +382,7 @@ export class LegalQueryService {
         (doc.current_status_cached as EvaluatedLegalStatus) ?? null,
       current_status_as_of: doc.current_status_as_of,
       sources,
+      verification,
       provisions,
       relationships,
       evidence,
@@ -535,6 +602,23 @@ export class LegalQueryService {
       rules_returned: topRules.length,
       rules: topRules,
       official_guidance: topGuidance,
+      verification: {
+        status: (answerable ? "cross_verified" : "unverified") as VerificationStatus,
+        sources: [
+          {
+            source: "congbao",
+            transport: "https",
+            format: "html",
+            strategy: "rss",
+          },
+          {
+            source: "vbpl",
+            transport: "https",
+            format: "html",
+            strategy: "html_fallback",
+          },
+        ],
+      },
       warnings,
       evaluated_timezone: "Asia/Ho_Chi_Minh",
     };

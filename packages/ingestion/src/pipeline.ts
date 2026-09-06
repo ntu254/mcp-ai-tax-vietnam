@@ -22,6 +22,7 @@ export interface IngestionResultItem {
   snapshotId: string;
   isNewSnapshot: boolean;
   html?: string;
+  rawXml?: string;
   binary?: Buffer;
 }
 
@@ -148,6 +149,7 @@ export class IngestionPipeline {
           sourceId,
           sourceName: item.sourceName,
           rawHtml: detail.html,
+          rawXml: detail.rawXml,
           binaryBuffer: detail.binary,
           binaryFilename: detail.binaryFilename,
           metadata: item.rawPayload,
@@ -160,6 +162,7 @@ export class IngestionPipeline {
           snapshotId: snapshotRes.snapshotId,
           isNewSnapshot: snapshotRes.isNewSnapshot,
           html: detail.html,
+          rawXml: detail.rawXml,
           binary: detail.binary,
         });
         latestProcessedId = item.sourceId;

@@ -20,6 +20,14 @@ describe("RobustFetcher Hardened Security & SSRF Defense (Point 2)", () => {
     expect(() =>
       fetcher.validateUrl("https://mof.gov.vn/webcenter/portal/btc")
     ).not.toThrow();
+
+    expect(() =>
+      fetcher.validateUrl("https://vbpl.vn/van-ban/trung-uong")
+    ).not.toThrow();
+
+    expect(() =>
+      fetcher.validateUrl("https://ws.vbpl.vn/vbqppl.asmx")
+    ).not.toThrow();
   });
 
   it("normalizes hostname with trailing dots and casing", () => {

@@ -28,5 +28,10 @@ export interface SourceConnector {
   pollRecent(options?: ConnectorPollOptions): Promise<DiscoveredItem[]>;
   fetchDetail(
     item: DiscoveredItem
-  ): Promise<{ html?: string; binary?: Buffer; binaryFilename?: "original.pdf" | "original.docx" }>;
+  ): Promise<{
+    html?: string;
+    rawXml?: string;
+    binary?: Buffer;
+    binaryFilename?: "original.pdf" | "original.docx";
+  }>;
 }

@@ -10,15 +10,22 @@ export interface SourceAssertion {
   documentNumber?: string;
   documentType?: string;
   title?: string;
+  issuer?: string;
   issuedDate?: string;
   effectiveFrom?: string;
   effectiveTo?: string;
+  statusMetadata?: string;
   rawTextHash?: string;
+  relationships?: any[];
+  history?: any[];
+  attachments?: any[];
+  vbplId?: string | number;
 }
 
 export interface VerificationRuleResult {
   passed: boolean;
   status: VerificationStatus;
+  answerable?: boolean;
   conflicts: Array<{
     fieldName: string;
     sourceA: { name: string; snapshotId: string; value: unknown };
@@ -148,6 +155,59 @@ export function verifyEffectiveDate(
   return {
     passed: true,
     status: officialSourcesCount >= 2 ? "cross_verified" : "single_source_verified",
+    conflicts,
+    warnings,
+  };
+}
+
+/**
+ * Rule E — Status and Expiry Validity Conflict
+ */
+export function verifyStatusAndValidity(
+  assertions: SourceAssertion[]
+): VerificationRuleResult {
+  const conflicts: VerificationRuleResult["conflicts"] = [];
+  const warnings: string[] = [];
+
+  for (let i = 0; i < assertions.length; i++) {
+    for (let j = i + 1; j < assertions.length; j++) {
+      const a = assertions[i];
+      const b = assertions[j];
+
+      // Expiration date conflict
+      if (a.effectiveTo && b.effectiveTo && a.effectiveTo !== b.effectiveTo) {
+        conflicts.push({
+          fieldName: "default_effective_to",
+          sourceA: { name: a.sourceName, snapshotId: a.snapshotId, value: a.effectiveTo },
+          sourceB: { name: b.sourceName, snapshotId: b.snapshotId, value: b.effectiveTo },
+          severity: "high",
+        });
+      }
+
+      // Status metadata conflict (e.g. Con hieu luc vs Het hieu luc)
+      if (a.statusMetadata && b.statusMetadata && a.statusMetadata !== b.statusMetadata) {
+        conflicts.push({
+          fieldName: "status_metadata",
+          sourceA: { name: a.sourceName, snapshotId: a.snapshotId, value: a.statusMetadata },
+          sourceB: { name: b.sourceName, snapshotId: b.snapshotId, value: b.statusMetadata },
+          severity: "high",
+        });
+      }
+    }
+  }
+
+  if (conflicts.length > 0) {
+    return {
+      passed: false,
+      status: "conflicting",
+      conflicts,
+      warnings: ["Official sources disagree on document validity or expiration."],
+    };
+  }
+
+  return {
+    passed: true,
+    status: assertions.length >= 2 ? "cross_verified" : "single_source_verified",
     conflicts,
     warnings,
   };

@@ -9,6 +9,8 @@ export const ALLOWED_OFFICIAL_DOMAINS = [
   "customs.gov.vn",
   "moj.gov.vn",
   "data.gov.vn",
+  "vbpl.vn",
+  "ws.vbpl.vn",
 ] as const;
 
 export interface FetchOptions {

@@ -12,6 +12,8 @@ export interface SaveSnapshotInput {
   sourceId: string;
   sourceName: string;
   rawHtml?: string;
+  rawXml?: string;
+  htmlFilename?: "page.html" | "detail.html";
   metadata?: Record<string, unknown>;
   binaryBuffer?: Buffer;
   binaryFilename?: "original.pdf" | "original.docx";
@@ -36,7 +38,11 @@ export class SnapshotManager {
   public async processSnapshot(
     input: SaveSnapshotInput
   ): Promise<SaveSnapshotResult> {
-    const pageHash = input.rawHtml ? computeSha256(input.rawHtml) : undefined;
+    const pageHash = input.rawHtml
+      ? computeSha256(input.rawHtml)
+      : input.rawXml
+      ? computeSha256(input.rawXml)
+      : undefined;
     const metadataHash = input.metadata
       ? computeSha256(JSON.stringify(input.metadata))
       : undefined;
@@ -101,14 +107,26 @@ export class SnapshotManager {
     let binaryKey: string | undefined;
 
     if (input.rawHtml) {
+      const htmlFilename =
+        input.htmlFilename ??
+        (input.sourceName.toLowerCase() === "vbpl" ? "detail.html" : "page.html");
       rawKey = this.storage.buildKey({
         sourceName: input.sourceName,
         sourceId: input.sourceId,
         snapshotId,
-        filename: "page.html",
+        filename: htmlFilename,
         date: now,
       });
       await this.storage.putObject(rawKey, input.rawHtml, "text/html; charset=utf-8");
+    } else if (input.rawXml) {
+      rawKey = this.storage.buildKey({
+        sourceName: input.sourceName,
+        sourceId: input.sourceId,
+        snapshotId,
+        filename: "response.xml",
+        date: now,
+      });
+      await this.storage.putObject(rawKey, input.rawXml, "application/xml; charset=utf-8");
     }
 
     if (input.metadata) {
@@ -149,7 +167,7 @@ export class SnapshotManager {
       source_id: input.sourceId,
       fetched_at: now,
       http_status: input.httpStatus ?? 200,
-      content_type: input.contentType ?? "text/html",
+      content_type: input.contentType ?? (input.rawXml ? "application/xml" : "text/html"),
       page_hash: pageHash,
       metadata_hash: metadataHash,
       binary_hash: binaryHash,

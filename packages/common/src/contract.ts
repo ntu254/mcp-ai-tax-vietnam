@@ -59,6 +59,29 @@ export const EvidenceItemSchema = z.object({
 export type EvidenceItem = z.infer<typeof EvidenceItemSchema>;
 
 /**
+ * Verification Provenance for Multi-Source Official Cross-Verification
+ */
+export const SourceProvenanceItemSchema = z.object({
+  source: z.string(),
+  transport: z.string().default("https"), // "https", "http"
+  format: z.string().default("html"), // "html", "soap_xml", "pdf", "docx"
+  strategy: z.string().default("html_fallback"), // "html_fallback", "soap", "rss"
+  snapshot_id: z.string().nullable().optional(),
+  verification_status: z.string().optional(),
+  retrieved_at: z.string().optional(),
+  channel: z.string().optional(), // alias for backwards compatibility
+});
+
+export type SourceProvenanceItem = z.infer<typeof SourceProvenanceItemSchema>;
+
+export const VerificationProvenanceSchema = z.object({
+  status: VerificationStatusSchema,
+  sources: z.array(SourceProvenanceItemSchema).default([]),
+});
+
+export type VerificationProvenance = z.infer<typeof VerificationProvenanceSchema>;
+
+/**
  * Provision summary in responses
  */
 export const ProvisionResultSchema = z.object({
@@ -143,6 +166,7 @@ export const LatestTaxUpdateItemSchema = z.object({
   effective_from: z.string().nullable().optional(),
   evidence_snapshot_id: z.string().uuid().optional().nullable(),
   source_name: z.string().optional().nullable(),
+  verification: VerificationProvenanceSchema.optional(),
 });
 
 export type LatestTaxUpdateItem = z.infer<typeof LatestTaxUpdateItemSchema>;
@@ -151,6 +175,7 @@ export const LatestTaxUpdatesOutputSchema = z.object({
   as_of: z.string(),
   dataset_version: z.string(),
   items: z.array(LatestTaxUpdateItemSchema),
+  verification: VerificationProvenanceSchema.optional(),
 });
 
 export type LatestTaxUpdatesOutput = z.infer<typeof LatestTaxUpdatesOutputSchema>;
@@ -185,6 +210,7 @@ export const SearchLegalDocsItemSchema = z.object({
   default_effective_from: z.string().nullable(),
   default_effective_to: z.string().nullable(),
   verification_status: VerificationStatusSchema,
+  verification: VerificationProvenanceSchema.optional(),
   official_source_summary: z.string().nullable().optional(),
   matching_snippets: z.array(z.string()).default([]),
   score: z.number().optional(),
@@ -241,6 +267,8 @@ export const DocumentSourceViewSchema = z.object({
   is_official: z.boolean(),
   snapshots_count: z.number().int().nonnegative(),
   latest_snapshot_id: z.string().uuid().nullable().optional(),
+  channel: z.string().optional(),
+  transport: z.string().optional(),
 });
 
 export type DocumentSourceView = z.infer<typeof DocumentSourceViewSchema>;
@@ -259,6 +287,7 @@ export const GetLegalDocumentOutputSchema = z.object({
   default_effective_from: z.string().nullable(),
   default_effective_to: z.string().nullable(),
   verification_status: VerificationStatusSchema,
+  verification: VerificationProvenanceSchema.optional(),
   current_status_cached: EvaluatedLegalStatusSchema.nullable().optional(),
   current_status_as_of: z.string().nullable().optional(),
   sources: z.array(DocumentSourceViewSchema).default([]),
@@ -300,6 +329,7 @@ export const EffectiveRuleItemSchema = z.object({
   provision: ProvisionResultSchema,
   evidence: z.array(EvidenceItemSchema),
   relevance_snippet: z.string().optional(),
+  verification: VerificationProvenanceSchema.optional(),
 });
 
 export type EffectiveRuleItem = z.infer<typeof EffectiveRuleItemSchema>;
@@ -330,6 +360,7 @@ export const GetEffectiveTaxRulesOutputSchema = z.object({
   rules: z.array(EffectiveRuleItemSchema),
   official_guidance: z.array(OfficialGuidanceItemSchema).default([]),
   warnings: z.array(z.string()).default([]),
+  verification: VerificationProvenanceSchema.optional(),
   evaluated_timezone: z.string().default("Asia/Ho_Chi_Minh"),
 });
 export type GetEffectiveTaxRulesOutput = z.infer<

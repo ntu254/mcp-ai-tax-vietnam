@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeSha256 } from "@vietnam-tax/source-storage";
+import { ObjectStorageService } from "@vietnam-tax/source-storage";
 
 interface MockSnapshot {
   id: string;
@@ -82,5 +83,27 @@ describe("Snapshot Append-Only Row Immutability & Pointer Architecture (Point 3)
 
     // Historical evidence is NEVER mutated and continues pointing to snapshot A
     expect(evidenceItem.source_snapshot_id).toBe("snap-A");
+  });
+
+  it("generates exact legal evidence key raw/vbpl/YYYY/MM/{source_id}/{snapshot_id}/response.xml with SHA-256", () => {
+    const storage = new ObjectStorageService();
+    const sampleXml = "<soap:Envelope>...</soap:Envelope>";
+    const xmlHash = computeSha256(sampleXml);
+
+    expect(xmlHash).toHaveLength(64);
+    expect(xmlHash).toMatch(/^[0-9a-f]{64}$/);
+
+    const fixedDate = new Date("2026-09-06T12:00:00Z");
+    const key = storage.buildKey({
+      sourceName: "vbpl",
+      sourceId: "vbpl-source-001",
+      snapshotId: "snapshot-uuid-999",
+      filename: "response.xml",
+      date: fixedDate,
+    });
+
+    expect(key).toBe(
+      "raw/vbpl/2026/09/vbpl-source-001/snapshot-uuid-999/response.xml"
+    );
   });
 });

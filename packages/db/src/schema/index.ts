@@ -287,6 +287,14 @@ export const legalEvidence = pgTable(
 
     verification_result: varchar("verification_result", { length: 50 }),
 
+    evidence_origin: varchar("evidence_origin", { length: 50 })
+      .default("live_official")
+      .notNull(),
+    environment: varchar("environment", { length: 20 })
+      .default("production")
+      .notNull(),
+    is_quarantined: boolean("is_quarantined").default(false).notNull(),
+
     created_at: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -297,6 +305,9 @@ export const legalEvidence = pgTable(
     index("evidence_rel_id_idx").on(table.relationship_id),
     index("evidence_snapshot_id_idx").on(table.source_snapshot_id),
     index("evidence_field_name_idx").on(table.field_name),
+    index("evidence_origin_idx").on(table.evidence_origin),
+    index("evidence_env_idx").on(table.environment),
+    index("evidence_quarantined_idx").on(table.is_quarantined),
   ]
 );
 

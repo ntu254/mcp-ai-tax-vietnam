@@ -23,7 +23,13 @@ export interface BuildKeyOptions {
   sourceName: string;
   sourceId: string;
   snapshotId: string;
-  filename: "page.html" | "metadata.json" | "original.pdf" | "original.docx";
+  filename:
+    | "page.html"
+    | "metadata.json"
+    | "original.pdf"
+    | "original.docx"
+    | "response.xml"
+    | string;
   date?: Date;
 }
 
